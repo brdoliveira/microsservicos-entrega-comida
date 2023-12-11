@@ -1,15 +1,10 @@
 package com.myorg;
 
-import software.amazon.awscdk.Fn;
-import software.amazon.awscdk.RemovalPolicy;
-import software.amazon.awscdk.Stack;
-import software.amazon.awscdk.StackProps;
+import software.amazon.awscdk.*;
+import software.amazon.awscdk.services.applicationautoscaling.EnableScalingProps;
 import software.amazon.awscdk.services.ecr.IRepository;
 import software.amazon.awscdk.services.ecr.Repository;
-import software.amazon.awscdk.services.ecs.AwsLogDriverProps;
-import software.amazon.awscdk.services.ecs.Cluster;
-import software.amazon.awscdk.services.ecs.ContainerImage;
-import software.amazon.awscdk.services.ecs.LogDriver;
+import software.amazon.awscdk.services.ecs.*;
 import software.amazon.awscdk.services.ecs.patterns.ApplicationLoadBalancedFargateService;
 import software.amazon.awscdk.services.ecs.patterns.ApplicationLoadBalancedTaskImageOptions;
 import software.amazon.awscdk.services.logs.LogGroup;
@@ -36,11 +31,11 @@ public class AluraServiceStack extends Stack {
 
         IRepository iRepository = fromRepositoryName( this,  "repositorio",  "img-pedidos-ms");
 
-        ApplicationLoadBalancedFargateService.Builder.create(this, "AluraService")
+        ApplicationLoadBalancedFargateService aluraService = ApplicationLoadBalancedFargateService.Builder.create(this, "AluraService")
                 .serviceName("alura-service-ola")
                 .cluster(cluster)
                 .cpu(512)
-                .desiredCount(3)
+                .desiredCount(1)
                 .listenerPort(8080)
                 .assignPublicIp(true)
                 .taskImageOptions(
@@ -60,5 +55,18 @@ public class AluraServiceStack extends Stack {
                 .memoryLimitMiB(1024)
                 .publicLoadBalancer(true)
                 .build();
+
+        ScalableTaskCount scalableTarget = aluraService.getService().autoScaleTaskCount(EnableScalingProps.builder()
+                .minCapacity(1)
+                .maxCapacity(20)
+                .build());
+        scalableTarget.scaleOnCpuUtilization("CpuScaling", CpuUtilizationScalingProps.builder()
+                .targetUtilizationPercent(50)
+                .scaleInCooldown(Duration.minutes(3))
+                .scaleOutCooldown(Duration.minutes(2))
+                .build());
+        scalableTarget.scaleOnMemoryUtilization("MemoryScaling", MemoryUtilizationScalingProps.builder()
+                .targetUtilizationPercent(50)
+                .build());
     }
 }
